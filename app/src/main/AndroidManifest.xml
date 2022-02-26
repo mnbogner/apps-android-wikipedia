@@ -379,6 +379,12 @@
             android:name="org.greatfire.envoy.ShadowsocksService"
             android:exported="false"
             android:isolatedProcess="false" />
+
+        <service
+            android:name="org.wikipedia.activity.ProxyService"
+            android:exported="false"
+            android:isolatedProcess="false" />
+
         <service
             android:name="org.greatfire.envoy.NetworkIntentService"
             android:exported="false" />

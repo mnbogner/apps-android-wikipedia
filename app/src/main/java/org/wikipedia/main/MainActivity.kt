@@ -24,6 +24,7 @@ import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.core.content.ContextCompat
 import org.greatfire.envoy.*
+import org.wikipedia.activity.ProxyService
 
 class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callback {
     private lateinit var binding: ActivityMainBinding
@@ -58,6 +59,14 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // start proxy service
+        val proxyIntent = Intent(this, ProxyService::class.java)
+        // put local proxy url here, can use socks5://127.0.0.1:1081 or any other available port
+        proxyIntent.putExtra("LOCAL_URL", "socks5://127.0.0.1:1081")
+        // put socks or obfs4 url here. can include auth or certs
+        proxyIntent.putExtra("PROXY_URL", "obfs4://foo")
+        ContextCompat.startForegroundService(applicationContext, proxyIntent)
+
         // register to receive test results
         LocalBroadcastManager.getInstance(this).registerReceiver(mBroadcastReceiver, IntentFilter(BROADCAST_VALID_URL_FOUND))
 
@@ -71,9 +80,11 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
         // val ssUrl = "socks5://127.0.0.1:1080";  // local shadowsocks url, keep this if no port conflicts
         // TODO - initialize one or more string values containing the urls of available https proxies
         val envoyUrl = "https://foo"
-        // Include shadowsocks local proxy url (submitting local shadowsocks url with no active service may cause an exception)
+        // include socks/obfs4 local proxy url (may fail on first attempt, restart app if necessary)
+        val proxyUrl = "socks5://127.0.0.1:1081"  // default proxy url, should match LOCAL_URL above
+        // include shadowsocks local proxy url (submitting local shadowsocks url with no active service may cause an exception)
         val ssUrl = "socks5://127.0.0.1:1080"  // default shadowsocks url, change if there are port conflicts
-        val possibleUrls = listOf<String>(envoyUrl, ssUrl)  // add all string values to this list value
+        val possibleUrls = listOf<String>(envoyUrl, proxyUrl, ssUrl)  // add all string values to this list value
         NetworkIntentService.submit(this, possibleUrls)  // submit list of urls to envoy for evaluation
 
         setImageZoomHelper()
