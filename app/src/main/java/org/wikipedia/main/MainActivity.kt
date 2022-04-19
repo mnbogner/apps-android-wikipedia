@@ -26,15 +26,84 @@ import androidx.core.content.ContextCompat
 import org.greatfire.envoy.*
 
 class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callback {
+
+    private val TAG = "MainActivity"
+
     private lateinit var binding: ActivityMainBinding
 
     private var controlNavTabInFragment = false
+
+    // initialize one or more string values containing the urls of available http/https proxies (include trailing slash)
+    private val httpUrl = "http://wiki.epochbelt.com/wikipedia/"
+    private val httpsUrl = "https://wiki.epochbelt.com/wikipedia/"
+    // urls for proxy services, change if there are port conflicts (do not include trailing slash)
+    private val ssUrl = "socks5://127.0.0.1:1080"
+    private val proxyUrl = "socks5://127.0.0.1:1081"
+    // add all string values to this list value
+    private val possibleUrls = listOf<String>(ssUrl, proxyUrl, httpUrl, httpsUrl)
+
+    // TODO: replace with alternate method of waiting until services are started?
+    private var waitingForShadowsocks = false
+    private var waitingForProxy = false
+    private var waitingForUrl = true
 
     // this receiver listens for the results from the NetworkIntentService started below
     // it should receive a result if no valid urls are found but not if the service throws an exception
     private val mBroadcastReceiver: BroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent != null && context != null) {
+                var proxyResult = intent.getIntExtra(ProxyService.PROXY_SERVICE_RESULT, 0)
+                if (proxyResult != 0) {
+                    Log.d(TAG, "GOT PROXY SERVICE RESULT: " + proxyResult)
+                    waitingForProxy = false
+                    if (proxyResult > 0) {
+                        Log.d(TAG, "PROXY STARTED OK")
+                    } else if (proxyResult == ProxyService.PROXY_RUNNING) {
+                        Log.d(TAG, "PROXY ALREADY RUNNING")
+                    } else if (proxyResult == ProxyService.PROXY_ERROR_PARAMETERS) {
+                        Log.d(TAG, "PROXY ERROR: MISSING PARAMETERS")
+                    } else if (proxyResult == ProxyService.PROXY_ERROR_RUN) {
+                        Log.d(TAG, "PROXY ERROR: FAILED TO RUN")
+                    } else if (proxyResult == ProxyService.PROXY_ERROR_EXE) {
+                        Log.d(TAG, "PROXY ERROR: MISSING EXE")
+                    } else {
+                        Log.d(TAG, "UNKNOWN PROXY ERROR")
+                    }
+
+                    if (waitingForShadowsocks) {
+                        Log.d(TAG, "STILL WAITING FOR SHADOWSOCKS SERVICE TO START")
+                    } else {
+                        Log.d(TAG, "SERVICE(S) STARTED, CHECK URLS")
+                        NetworkIntentService.submit(
+                            context,
+                            possibleUrls
+                        )
+                    }
+                }
+
+                var shadowsocksResult = intent.getIntExtra(ShadowsocksService.SHADOWSOCKS_SERVICE_RESULT, 0)
+                if (shadowsocksResult != 0) {
+                    Log.d(TAG, "GOT SHADOWSOCKS SERVICE RESULT: " + shadowsocksResult)
+                    waitingForShadowsocks = false
+                    if (shadowsocksResult > 0) {
+                        Log.d(TAG, "SHADOWSOCKS STARTED OK")
+                    } else if (shadowsocksResult == ShadowsocksService.SHADOWSOCKS_ERROR) {
+                        Log.d(TAG, "SHADOWSOCKS ERROR: ???")
+                    } else {
+                        Log.d(TAG, "UNKNOWN SHADOWSOCKS ERROR")
+                    }
+
+                    if (waitingForProxy) {
+                        Log.d(TAG, "STILL WAITING FOR PROXY SERVICE TO START")
+                    } else {
+                        Log.d(TAG, "SERVICE(S) STARTED, CHECK URLS")
+                        NetworkIntentService.submit(
+                            context,
+                            possibleUrls
+                        )
+                    }
+                }
+
                 val validUrls = intent.getStringArrayListExtra(EXTENDED_DATA_VALID_URLS)
                 Log.i("BroadcastReceiver", "Received valid urls: " + validUrls?.let {
                     TextUtils.join(", ", it)
@@ -42,10 +111,18 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
                 // if there are no valid urls, initializeCronetEngine will not be called
                 // the app will start normally and connect to the internet directly if possible
                 if (validUrls != null && !validUrls.isEmpty()) {
-                    val envoyUrl = validUrls[0]
-                    // select the fastest one (urls are ordered by latency), reInitializeIfNeeded set to false
-                    CronetNetworking.initializeCronetEngine(context, envoyUrl)
+                    if (waitingForUrl) {
+                        waitingForUrl = false
+                        val envoyUrl = validUrls[0]
+                        Log.d(TAG, "GOT VALID URL: " + envoyUrl)
+                        // select the fastest one (urls are ordered by latency), reInitializeIfNeeded set to false
+                        CronetNetworking.initializeCronetEngine(context, envoyUrl)
+                    } else {
+                        Log.d(TAG, "ALREADY GOT VALID URL")
+                    }
                 }
+            } else {
+                Log.d(TAG, "INTENT OR CONTEXT MISSING")
             }
         }
     }
@@ -59,23 +136,47 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
         super.onCreate(savedInstanceState)
 
         // register to receive test results
-        LocalBroadcastManager.getInstance(this).registerReceiver(mBroadcastReceiver, IntentFilter(BROADCAST_VALID_URL_FOUND))
+        LocalBroadcastManager.getInstance(this).registerReceiver(mBroadcastReceiver, IntentFilter().apply {
+            addAction(BROADCAST_VALID_URL_FOUND)
+            addAction(BROADCAST_NO_URL_FOUND)
+            addAction(ProxyService.PROXY_SERVICE_BROADCAST)
+            addAction(ShadowsocksService.SHADOWSOCKS_SERVICE_BROADCAST)
+        })
 
-        // start shadowsocks service
-        val shadowsocksIntent = Intent(this, ShadowsocksService::class.java)
-        // put shadowsocks proxy url here, should look like ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpwYXNz@127.0.0.1:1234 (base64 encode user/password)
-        shadowsocksIntent.putExtra("org.greatfire.envoy.START_SS_LOCAL", "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTppZXNvaHZvOHh1Nm9oWW9yaWUydGhhZWhvaFBoOFRoYQ==@172.104.163.54:8388");
-        ContextCompat.startForegroundService(applicationContext, shadowsocksIntent)
+        if (possibleUrls.contains(ssUrl)) {
+            Log.d(TAG, "LIST CONTAINS SHADOWSOCKS URL, START SERVICE")
+            // start shadowsocks service
+            val shadowsocksIntent = Intent(this, ShadowsocksService::class.java)
+            // put shadowsocks proxy url here, should look like ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpwYXNz@127.0.0.1:1234 (base64 encode user/password)
+            shadowsocksIntent.putExtra(
+                "org.greatfire.envoy.START_SS_LOCAL",
+                "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTppZXNvaHZvOHh1Nm9oWW9yaWUydGhhZWhvaFBoOFRoYQ==@172.104.163.54:8388"
+            );
+            waitingForShadowsocks = true
+            ContextCompat.startForegroundService(applicationContext, shadowsocksIntent)
+        }
 
-        // TODO - initialize one or more string values containing the urls of available http/https proxies (include trailing slash)
-        val httpUrl = "http://wiki.epochbelt.com/wikipedia/"
-        val httpsUrl = "https://wiki.epochbelt.com/wikipedia/"
-        // include shadowsocks local proxy url (submitting local shadowsocks url with no active service may cause an exception)
-        val ssUrl = "socks5://127.0.0.1:1080"  // default shadowsocks url, change if there are port conflicts
+        if (possibleUrls.contains(proxyUrl)) {
+            Log.d(TAG, "LIST CONTAINS PROXY URL, START SERVICE")
+            // start proxy service
+            val proxyIntent = Intent(this, ProxyService::class.java)
+            // put local proxy url here, can use socks5://127.0.0.1:1081 or any other available port
+            proxyIntent.putExtra(ProxyService.LOCAL_URL, "socks5://127.0.0.1")
+            proxyIntent.putExtra(ProxyService.LOCAL_PORT, 1081)
+            // put socks or obfs4 url here. can include auth or certs
+            proxyIntent.putExtra(
+                ProxyService.PROXY_URL,
+                "obfs4://<ip>:<port>/?cert=<encoded cert>&iat-mode=0"
+            )
+            waitingForProxy = true
+            ContextCompat.startForegroundService(applicationContext, proxyIntent)
+        }
 
-        val possibleUrls = listOf<String>(httpUrl, httpsUrl, ssUrl)  // add all string values to this list value
-
-        NetworkIntentService.submit(this, possibleUrls)  // submit list of urls to envoy for evaluation
+        if (!possibleUrls.contains(ssUrl) && !possibleUrls.contains(proxyUrl)) {
+            Log.d(TAG, "LIST CONTAINS NO SHADOWSOCKS OR PROXY URL, CHECK REMAINING URLS")
+            // submit list of urls to envoy for evaluation
+            NetworkIntentService.submit(this, possibleUrls)
+        }
 
         setImageZoomHelper()
         if (Prefs.isInitialOnboardingEnabled && savedInstanceState == null) {
@@ -92,6 +193,14 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
         supportActionBar?.title = ""
         supportActionBar?.setDisplayHomeAsUpEnabled(false)
         binding.mainToolbar.navigationIcon = null
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+    }
+
+    override fun onStart() {
+        super.onStart()
     }
 
     override fun onResume() {
