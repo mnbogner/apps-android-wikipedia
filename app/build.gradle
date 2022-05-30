@@ -1,5 +1,6 @@
 apply plugin: 'com.android.application'
-apply plugin: 'com.google.gms.google-services'
+// TODO: client_info/package_name in google-services.json does not match updated application id
+// apply plugin: 'com.google.gms.google-services'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-parcelize'
 apply plugin: 'kotlinx-serialization'
@@ -37,7 +38,7 @@ android {
     }
 
     defaultConfig {
-        applicationId 'org.wikipedia'
+        applicationId 'org.greatfire.wiki'
         minSdkVersion 21
         targetSdkVersion 31
         versionCode 50400
