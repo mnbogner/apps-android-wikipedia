@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">@string/app_name_alpha</string>
+    <string name="app_name">Wiki Unblocked Alpha</string>
     <string name="channel">Alpha Channel</string>
 
     <!-- The alpha build uses a different signature than beta and prod. -->

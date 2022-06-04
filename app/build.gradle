@@ -42,7 +42,7 @@ android {
         minSdkVersion 21
         targetSdkVersion 31
         versionCode 50400
-        testApplicationId 'org.wikipedia.test'
+        testApplicationId 'org.greatfire.wiki.test'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         testInstrumentationRunnerArguments clearPackageData: 'true'
 

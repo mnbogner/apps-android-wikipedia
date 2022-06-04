@@ -24,7 +24,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="32dp"
             android:contentDescription="@null"
-            app:srcCompat="@drawable/feed_header_wordmark"
+            app:srcCompat="@drawable/wiki_color_fixed"
             app:tint="?attr/material_theme_primary_color" />
     </androidx.appcompat.widget.Toolbar>
 

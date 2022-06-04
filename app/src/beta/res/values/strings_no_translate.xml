@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">@string/app_name_beta</string>
-    <string name="channel">Google Play Beta Channel</string>
+    <string name="app_name">Wiki Unblocked Beta</string>
+    <string name="channel">Beta Channel</string>
 
     <!-- TODO: remove and use the same account as prod when tokens are stored. -->
     <string name="account_name">Wikimedia (Beta)</string>

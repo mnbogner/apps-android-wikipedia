@@ -4,17 +4,17 @@
 
     <item android:drawable="@color/base10" />
 
-    <item android:bottom="128dp">
+    <!--item android:bottom="128dp">
         <shape android:shape="rectangle">
             <gradient android:type="radial" android:gradientRadius="100dp"
                 android:startColor="@color/base30" android:endColor="@color/base10" />
         </shape>
-    </item>
+    </item-->
 
     <item android:bottom="128dp">
         <!-- Use a bitmap element with centered gravity to prevent scaling. -->
         <bitmap
-            android:src="@drawable/w_nav_mark"
+            android:src="@drawable/wiki_bw_fixed"
             android:antialias="true"
             android:gravity="center" />
     </item>

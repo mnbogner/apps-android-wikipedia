@@ -23,7 +23,7 @@ class ThemeFittingRoomFragment : Fragment() {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentThemeFittingRoomBinding.inflate(inflater, container, false)
         disposables.add(WikipediaApp.getInstance().bus.subscribe(EventBusConsumer()))
-        binding.themeTestImage.loadImage(R.drawable.w_nav_mark)
+        binding.themeTestImage.loadImage(R.drawable.wiki_bw_fixed)
         updateTextSize()
         updateFontFamily()
         return binding.root

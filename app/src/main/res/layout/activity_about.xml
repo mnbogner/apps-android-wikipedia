@@ -28,15 +28,15 @@
                 android:layout_height="80dp"
                 android:layout_marginTop="30dp"
                 android:contentDescription="@null"
-                android:src="@drawable/w_nav_mark" />
+                android:src="@drawable/wiki_bw_fixed" />
 
-            <ImageView
+            <!--ImageView
                 android:layout_width="114dp"
                 android:layout_height="22dp"
                 android:layout_marginTop="4dp"
                 android:contentDescription="@null"
                 android:src="@drawable/wp_wordmark"
-                app:tint="?attr/chart_shade1" />
+                app:tint="?attr/chart_shade1" /-->
 
             <TextView
                 android:id="@+id/about_version_text"

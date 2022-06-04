@@ -94,7 +94,7 @@ object NotificationPresenter {
                          @DrawableRes icon: Int, @ColorRes color: Int, bodyIntent: Intent) {
         builder.setContentIntent(PendingIntent.getActivity(context, 0, bodyIntent, PendingIntent.FLAG_UPDATE_CURRENT or DeviceUtil.pendingIntentFlags))
                 .setLargeIcon(drawNotificationBitmap(context, color, icon, lang.orEmpty().uppercase(Locale.getDefault())))
-                .setSmallIcon(R.drawable.ic_wikipedia_w)
+                .setSmallIcon(R.drawable.gf_wiki_notification)
                 .setColor(ContextCompat.getColor(context, color))
                 .setContentTitle(title)
                 .setContentText(text)
