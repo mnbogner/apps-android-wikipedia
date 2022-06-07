@@ -53,6 +53,7 @@
     </queries>
 
     <application
+        android:usesCleartextTraffic="true"
         android:allowBackup="true"
         android:fullBackupContent="@xml/full_backup_rules"
         android:supportsRtl="true"

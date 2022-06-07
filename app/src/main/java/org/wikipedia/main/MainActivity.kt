@@ -25,6 +25,15 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.core.content.ContextCompat
 import org.greatfire.envoy.*
 
+import IPtProxy.IPtProxy
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.net.HttpURLConnection
+import java.net.URL
+
 class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callback {
 
     private val TAG = "MainActivity"
@@ -34,12 +43,11 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
     private var controlNavTabInFragment = false
 
     // initialize one or more string values containing the urls of available http/https proxies (include trailing slash)
-    private val httpUrl = "http://wiki.epochbelt.com/wikipedia/"
-    private val httpsUrl = "https://wiki.epochbelt.com/wikipedia/"
+    // -> now parsing urls from dnstt request
     // urls for additional proxy services, change if there are port conflicts (do not include trailing slash)
     private val ssUrl = "socks5://127.0.0.1:1080"
     // add all string values to this list value
-    private val possibleUrls = listOf<String>(httpUrl, httpsUrl, ssUrl)
+    private val possibleUrls = mutableListOf<String>(ssUrl)
 
     // TODO: revisit and refactor
     private var waitingForShadowsocks = false
@@ -100,6 +108,64 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
         setContentView(binding.root)
     }
 
+    private fun envoySetup() {
+        try {
+            Log.d(TAG, "start dnstt proxy")
+            val dnsttPort = IPtProxy.startDNSttProxy(
+                "t.scm.codes",
+                "https://dns.google/dns-query",
+                "",
+                "d76f2c5e28b4a87b816dc23b49c79aad325f6a8c271ee4021330ca75577c332b"
+            )
+
+            Log.d(TAG, "get list of possible urls")
+            val url = URL("http://127.0.0.1:" + dnsttPort + "/urls.json")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.connect()
+
+            val input = connection.inputStream
+            if (input != null) {
+                Log.d(TAG, "parse json and extract possible urls")
+                val json = input.bufferedReader().use(BufferedReader::readText)
+                val jsonObject = JSONObject(json)
+                val envoyObject = jsonObject.getJSONObject("envoy")
+                val wikipediaArray = envoyObject.getJSONArray("wikipedia")
+                for (i in 0 until wikipediaArray!!.length()) {
+                    possibleUrls.add(wikipediaArray.getString(i))
+                }
+            } else {
+                Log.d(TAG, "response contained no json to parse")
+            }
+        } catch (e: Error) {
+            Log.d(TAG, "dnstt error: " + e.localizedMessage)
+        }
+
+        Log.d(TAG, "stop dnstt proxy")
+        IPtProxy.stopDNSttProxy()
+
+        // check for urls that require services
+        for (url in possibleUrls) {
+            if (url.startsWith("socks5://")) {
+                Log.d(TAG, "shadowsocks service needed, submit urls after starting")
+                // start shadowsocks service
+                val shadowsocksIntent = Intent(this, ShadowsocksService::class.java)
+                // put shadowsocks proxy url here, should look like ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpwYXNz@127.0.0.1:1234 (base64 encode user/password)
+                shadowsocksIntent.putExtra(
+                    "org.greatfire.envoy.START_SS_LOCAL",
+                    "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTppZXNvaHZvOHh1Nm9oWW9yaWUydGhhZWhvaFBoOFRoYQ==@172.104.163.54:8388"
+                );
+                waitingForShadowsocks = true
+                ContextCompat.startForegroundService(applicationContext, shadowsocksIntent)
+                return;
+            }
+        }
+
+        // submit list of urls to envoy for evaluation
+        Log.d(TAG, "no services needed, submit urls immediately")
+        waitingForUrl = true
+        NetworkIntentService.submit(this, possibleUrls)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -110,19 +176,9 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
             addAction(ShadowsocksService.SHADOWSOCKS_SERVICE_BROADCAST)
         })
 
-        if (possibleUrls.contains(ssUrl)) {
-            Log.d(TAG, "shadowsocks service needed, submit urls after starting")
-            // start shadowsocks service
-            val shadowsocksIntent = Intent(this, ShadowsocksService::class.java)
-            // put shadowsocks proxy url here, should look like ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpwYXNz@127.0.0.1:1234 (base64 encode user/password)
-            shadowsocksIntent.putExtra("org.greatfire.envoy.START_SS_LOCAL", "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTppZXNvaHZvOHh1Nm9oWW9yaWUydGhhZWhvaFBoOFRoYQ==@172.104.163.54:8388");
-            waitingForShadowsocks = true
-            ContextCompat.startForegroundService(applicationContext, shadowsocksIntent)
-        } else {
-            Log.d(TAG, "no services needed, submit urls immediately")
-            // submit list of urls to envoy for evaluation
-            waitingForUrl = true
-            NetworkIntentService.submit(this, possibleUrls)
+        // run envoy setup (fetches and validate urls)
+        lifecycleScope.launch(Dispatchers.IO) {
+            envoySetup()
         }
 
         setImageZoomHelper()

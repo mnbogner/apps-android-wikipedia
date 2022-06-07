@@ -279,6 +279,8 @@ dependencies {
     debugImplementation files('libs/envoy-debug.aar')
     releaseImplementation files('libs/cronet-release.aar')
     releaseImplementation files('libs/envoy-release.aar')
+
+    implementation files('libs/IPtProxy.aar')
 }
 
 private setSigningConfigKey(config, Properties props) {
