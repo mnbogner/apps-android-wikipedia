@@ -30,6 +30,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import org.wikipedia.BuildConfig
 import java.io.BufferedReader
 import java.net.HttpURLConnection
 import java.net.URL
@@ -45,9 +46,10 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
     // initialize one or more string values containing the urls of available http/https proxies (include trailing slash)
     // -> now parsing urls from dnstt request
     // urls for additional proxy services, change if there are port conflicts (do not include trailing slash)
-    private val ssUrl = "socks5://127.0.0.1:1080"
+    private val ssUrlLocal = "socks5://127.0.0.1:1080"
+    private var ssUrlRemote = ""
     // add all string values to this list value
-    private val possibleUrls = mutableListOf<String>(ssUrl)
+    private val possibleUrls = mutableListOf<String>()
 
     // TODO: revisit and refactor
     private var waitingForShadowsocks = false
@@ -109,17 +111,26 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
     }
 
     private fun envoySetup() {
+
+        if (BuildConfig.DNSTT_SERVER.isNullOrEmpty()
+            || BuildConfig.DNSTT_KEY.isNullOrEmpty()
+            || BuildConfig.DNSTT_PATH.isNullOrEmpty()) {
+            Log.e(TAG, "dnstt server/key/path are not defined, cannot setup envoy")
+            return
+        }
+
         try {
             Log.d(TAG, "start dnstt proxy")
+            // provide either DOH or DOT address, and provide an empty string for the other
             val dnsttPort = IPtProxy.startDNSttProxy(
-                "t.scm.codes",
+                BuildConfig.DNSTT_SERVER,
                 "https://dns.google/dns-query",
                 "",
-                "d76f2c5e28b4a87b816dc23b49c79aad325f6a8c271ee4021330ca75577c332b"
+                BuildConfig.DNSTT_KEY
             )
 
             Log.d(TAG, "get list of possible urls")
-            val url = URL("http://127.0.0.1:" + dnsttPort + "/urls.json")
+            val url = URL("http://127.0.0.1:" + dnsttPort + BuildConfig.DNSTT_PATH)
             val connection = url.openConnection() as HttpURLConnection
             connection.connect()
 
@@ -127,11 +138,17 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
             if (input != null) {
                 Log.d(TAG, "parse json and extract possible urls")
                 val json = input.bufferedReader().use(BufferedReader::readText)
-                val jsonObject = JSONObject(json)
-                val envoyObject = jsonObject.getJSONObject("envoy")
-                val wikipediaArray = envoyObject.getJSONArray("wikipedia")
-                for (i in 0 until wikipediaArray!!.length()) {
-                    possibleUrls.add(wikipediaArray.getString(i))
+                val envoyObject = JSONObject(json)
+                val envoyUrlArray = envoyObject.getJSONArray("envoyUrls")
+                for (i in 0 until envoyUrlArray!!.length()) {
+                    if (envoyUrlArray.getString(i).startsWith("ss://")) {
+                        Log.d(TAG, "found ss url")
+                        possibleUrls.add(ssUrlLocal)
+                        ssUrlRemote = envoyUrlArray.getString(i)
+                    } else {
+                        Log.d(TAG, "found url")
+                        possibleUrls.add(envoyUrlArray.getString(i))
+                    }
                 }
             } else {
                 Log.d(TAG, "response contained no json to parse")
@@ -152,7 +169,7 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
                 // put shadowsocks proxy url here, should look like ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTpwYXNz@127.0.0.1:1234 (base64 encode user/password)
                 shadowsocksIntent.putExtra(
                     "org.greatfire.envoy.START_SS_LOCAL",
-                    "ss://Y2hhY2hhMjAtaWV0Zi1wb2x5MTMwNTppZXNvaHZvOHh1Nm9oWW9yaWUydGhhZWhvaFBoOFRoYQ==@172.104.163.54:8388"
+                    ssUrlRemote
                 );
                 waitingForShadowsocks = true
                 ContextCompat.startForegroundService(applicationContext, shadowsocksIntent)
