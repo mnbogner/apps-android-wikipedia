@@ -1,6 +1,7 @@
 name: Android test and alpha update
 
 on:
+  workflow_dispatch:
   push:
     branches: [ envoy-demo ]
 
