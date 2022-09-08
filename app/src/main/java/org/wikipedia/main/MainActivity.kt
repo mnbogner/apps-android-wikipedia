@@ -65,6 +65,17 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
     private var waitingForDefaultUrl = false
     private var waitingForDnsttUrl = false
 
+    // TODO: copied from org.greatfire.envoy.NetworkIntentService, make public/static and import?
+    private val UNMODIFIED_STRATEGY = 0
+    private val ELEVATED_COUNT_STRATEGY = 1
+    private val TRUNCATED_RESERVED_STRATEGY = 2
+    private val MULTI_BYTE_STRATEGY = 3
+    private val MULTI_BYTE_ELEVATED_COUNT_STRATEGY = 4
+    private val COMPRESSED_STRATEGY = 5
+
+    // TEMP
+    private val CURRENT_STRATEGY = ELEVATED_COUNT_STRATEGY
+
     // this receiver should be triggered by a success or failure broadcast from either the
     // NetworkIntentService (indicating whether submitted urls were valid or invalid) or the
     // ShadowsocksService (indicating whether the service was successfully started or not
@@ -128,17 +139,17 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
                             waitingForHysteria = false
                             waitingForV2ray = false
                             if (waitingForDefaultUrl) {
-                                NetworkIntentService.submit(this@MainActivity, defaultUrls)
+                                NetworkIntentService.submit(this@MainActivity, defaultUrls, CURRENT_STRATEGY)
                             } else {
-                                NetworkIntentService.submit(this@MainActivity, dnsttUrls)
+                                NetworkIntentService.submit(this@MainActivity, dnsttUrls, CURRENT_STRATEGY)
                             }
                         }
                     } else {
                         Log.d(TAG, "submit urls, no additional delay is needed")
                         if (waitingForDefaultUrl) {
-                            NetworkIntentService.submit(this@MainActivity, defaultUrls)
+                            NetworkIntentService.submit(this@MainActivity, defaultUrls, CURRENT_STRATEGY)
                         } else {
-                            NetworkIntentService.submit(this@MainActivity, dnsttUrls)
+                            NetworkIntentService.submit(this@MainActivity, dnsttUrls, CURRENT_STRATEGY)
                         }
                     }
                 } else {
@@ -476,18 +487,18 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
                 waitingForHysteria = false
                 waitingForV2ray = false
                 if (waitingForDefaultUrl) {
-                    NetworkIntentService.submit(this@MainActivity, defaultUrls)
+                    NetworkIntentService.submit(this@MainActivity, defaultUrls, CURRENT_STRATEGY)
                 } else {
-                    NetworkIntentService.submit(this@MainActivity, dnsttUrls)
+                    NetworkIntentService.submit(this@MainActivity, dnsttUrls, CURRENT_STRATEGY)
                 }
             }
         } else {
             // submit list of urls to envoy for evaluation
             Log.d(TAG, "no services needed, submit urls immediately")
             if (waitingForDefaultUrl) {
-                NetworkIntentService.submit(this@MainActivity, defaultUrls)
+                NetworkIntentService.submit(this@MainActivity, defaultUrls, CURRENT_STRATEGY)
             } else {
-                NetworkIntentService.submit(this@MainActivity, dnsttUrls)
+                NetworkIntentService.submit(this@MainActivity, dnsttUrls, CURRENT_STRATEGY)
             }
         }
     }
