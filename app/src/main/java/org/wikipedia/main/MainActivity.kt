@@ -85,6 +85,11 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
                 if (intent.action == BROADCAST_URL_VALIDATION_SUCCEEDED) {
                     val validUrls = intent.getStringArrayListExtra(EXTENDED_DATA_VALID_URLS)
                     Log.d(TAG, "received " + validUrls?.size + " valid urls")
+
+                    val validUrl = intent.getStringExtra(EXTENDED_DATA_VALID_URL)
+                    val validStrategy = intent.getIntExtra(EXTENDED_DATA_VALID_STRATEGY, 0)
+                    Log.d("GENEVA", "found valid parameters: " + validUrl + " / " + validStrategy)
+
                     if (waitingForDefaultUrl || waitingForDnsttUrl) {
                         if (validUrls != null && !validUrls.isEmpty()) {
                             // if we get a valid url, it doesn't matter whether it's from defaults or dnstt
@@ -94,6 +99,11 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
                             Log.d(TAG, "found a valid url: " + envoyUrl + ", start engine")
                             // select the fastest one (urls are ordered by latency), reInitializeIfNeeded set to false
                             CronetNetworking.initializeCronetEngine(context, envoyUrl)
+                            if (CronetNetworking.cronetEngine() != null) {
+                                Log.d("GENEVA", "set geneva strategy for cronet engine: " + validStrategy)
+                            } else {
+                                Log.d("GENEVA", "can't set geneva strategy, cronet engine is null")
+                            }
                         } else {
                             Log.e(TAG, "received empty list of valid urls")
                         }
@@ -103,6 +113,11 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
                 } else if (intent.action == BROADCAST_URL_VALIDATION_FAILED) {
                     val invalidUrls = intent.getStringArrayListExtra(EXTENDED_DATA_INVALID_URLS)
                     Log.e(TAG, "received " + invalidUrls?.size + " invalid urls")
+
+                    val invalidUrl = intent.getStringExtra(EXTENDED_DATA_INVALID_URL)
+                    val invalidStrategy = intent.getIntExtra(EXTENDED_DATA_INVALID_STRATEGY, 0)
+                    Log.d("GENEVA", "found invalid parameters: " + invalidUrl + " / " + invalidStrategy)
+
                     if (invalidUrls != null && !invalidUrls.isEmpty()) {
                         if (waitingForDefaultUrl && (invalidUrls.size >= defaultUrls.size)) {
                             Log.e(TAG, "no default urls left to try, fetch urls with dnstt")
