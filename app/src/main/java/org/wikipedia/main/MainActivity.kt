@@ -22,6 +22,7 @@ import org.wikipedia.BuildConfig
 import org.wikipedia.Constants
 import org.wikipedia.R
 import org.wikipedia.activity.SingleFragmentActivity
+import org.wikipedia.analytics.EnvoyAnalytics
 import org.wikipedia.databinding.ActivityMainBinding
 import org.wikipedia.navtab.NavTab
 import org.wikipedia.onboarding.InitialOnboardingActivity
@@ -81,6 +82,10 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
                             waitingForDnsttUrl = false
                             val envoyUrl = validUrls[0]
                             Log.d(TAG, "found a valid url: " + envoyUrl + ", start engine")
+
+                            // TEMP
+                            EnvoyAnalytics.logSelectedUrl(envoyUrl)
+
                             // select the fastest one (urls are ordered by latency), reInitializeIfNeeded set to false
                             CronetNetworking.initializeCronetEngine(context, envoyUrl)
                         } else {
@@ -88,11 +93,29 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
                         }
                     } else {
                         Log.d(TAG, "already found a valid url")
+
+                        // TEMP
+                        if (validUrls != null && !validUrls.isEmpty()) {
+                            // last url should be new
+                            // TODO: return a single url instead of an expanding array?
+                            val validUrl = validUrls[validUrls.size - 1]
+                            EnvoyAnalytics.logValidUrl(validUrl)
+                        } else {
+                            Log.e(TAG, "received empty list of valid urls")
+                        }
+
                     }
                 } else if (intent.action == BROADCAST_URL_VALIDATION_FAILED) {
                     val invalidUrls = intent.getStringArrayListExtra(EXTENDED_DATA_INVALID_URLS)
                     Log.e(TAG, "received " + invalidUrls?.size + " invalid urls")
                     if (invalidUrls != null && !invalidUrls.isEmpty()) {
+
+                        // TEMP
+                        // last url should be new
+                        // TODO: return a single url instead of an expanding array?
+                        val invalidUrl = invalidUrls[invalidUrls.size - 1]
+                        EnvoyAnalytics.logInvalidUrl(invalidUrl)
+
                         if (waitingForDefaultUrl && (invalidUrls.size >= defaultUrls.size)) {
                             Log.e(TAG, "no default urls left to try, fetch urls with dnstt")
                             waitingForDefaultUrl = false
@@ -494,6 +517,15 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // TEMP
+        if (BuildConfig.DEBUG) {
+            Log.d(EnvoyAnalytics.TAG, "debug build, disable analytics")
+            EnvoyAnalytics.disableAnalytics()
+        } else {
+            Log.d(EnvoyAnalytics.TAG, "release build, enable analytics")
+            EnvoyAnalytics.enableAnalytics()
+        }
 
         // register to receive test results
         LocalBroadcastManager.getInstance(this).registerReceiver(mBroadcastReceiver, IntentFilter().apply {
