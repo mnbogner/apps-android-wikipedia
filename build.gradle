@@ -4,6 +4,9 @@ buildscript {
         google()
         mavenCentral()
         mavenLocal()
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
     }
     dependencies {
         classpath 'com.android.tools.build:gradle:7.2.1'
@@ -11,6 +14,7 @@ buildscript {
         classpath 'com.google.gms:google-services:4.3.13'
         classpath "org.jetbrains.kotlin:kotlin-serialization:$kotlin_version"
         classpath 'org.greatfire:IEnvoyProxy:1.2.0'
+        classpath "com.klaxit.hiddensecrets:HiddenSecretsPlugin:0.2.0"
     }
 }
 
