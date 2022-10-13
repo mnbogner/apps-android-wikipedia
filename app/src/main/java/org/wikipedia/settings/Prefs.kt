@@ -115,7 +115,9 @@ object Prefs {
         set(multiplier) = PrefsIoUtil.setInt(R.string.preference_key_text_size_multiplier, multiplier)
 
     var isEventLoggingEnabled
-        get() = PrefsIoUtil.getBoolean(R.string.preference_key_eventlogging_opt_in, true)
+        // TEMP: hard code to false for now so events are not logged to wikipedia
+        // get() = PrefsIoUtil.getBoolean(R.string.preference_key_eventlogging_opt_in, true)
+        get() = false
         set(enabled) = PrefsIoUtil.setBoolean(R.string.preference_key_eventlogging_opt_in, enabled)
 
     val announcementsCountryOverride

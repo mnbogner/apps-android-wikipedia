@@ -1,6 +1,7 @@
 package org.wikipedia.analytics
 
 import android.net.Uri
+import android.util.Log
 import io.reactivex.rxjava3.core.Completable
 import io.reactivex.rxjava3.schedulers.Schedulers
 import okhttp3.Request
@@ -15,6 +16,7 @@ import org.wikipedia.util.log.L
 class EventLoggingService private constructor() {
 
     fun log(event: JSONObject?) {
+        Log.d("ENVOY_LOG", "event logging is currently enabled:" + Prefs.isEventLoggingEnabled + ", log events if necessary")
         if (!Prefs.isEventLoggingEnabled || !WikipediaApp.instance.isOnline) {
             // Do not send events if the user opted out of EventLogging or the device is offline.
             return

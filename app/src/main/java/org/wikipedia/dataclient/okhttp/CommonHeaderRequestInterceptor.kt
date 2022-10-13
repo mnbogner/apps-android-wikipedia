@@ -1,5 +1,6 @@
 package org.wikipedia.dataclient.okhttp
 
+import android.util.Log
 import okhttp3.Interceptor
 import okhttp3.Response
 import org.wikipedia.WikipediaApp
@@ -11,6 +12,7 @@ internal class CommonHeaderRequestInterceptor : Interceptor {
     @Throws(IOException::class)
     override fun intercept(chain: Interceptor.Chain): Response {
         val app = WikipediaApp.instance
+        Log.d("ENVOY_LOG", "event logging is currently enabled:" + isEventLoggingEnabled + ", configure necessary headers")
         val builder = chain.request().newBuilder()
                 .header("User-Agent", app.userAgent)
                 .header(if (isEventLoggingEnabled) "X-WMF-UUID" else "DNT",

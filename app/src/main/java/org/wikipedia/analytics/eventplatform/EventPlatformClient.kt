@@ -1,5 +1,6 @@
 package org.wikipedia.analytics.eventplatform
 
+import android.util.Log
 import io.reactivex.rxjava3.schedulers.Schedulers
 import org.wikipedia.BuildConfig
 import org.wikipedia.WikipediaApp
@@ -59,10 +60,13 @@ object EventPlatformClient {
      */
     @Synchronized
     fun submit(event: Event) {
+        // TEMP: disable code for now so events are not logged to wikipedia
+        /*
         if (!SamplingController.isInSample(event) || (event is BreadCrumbLogEvent && ReleaseUtil.isProdRelease)) {
             return
         }
         OutputBuffer.schedule(event)
+        */
     }
 
     fun flushCachedEvents() {
@@ -144,6 +148,7 @@ object EventPlatformClient {
          * can contain events of different streams
          */
         private fun send() {
+            Log.d("ENVOY_LOG", "event logging is currently enabled:" + Prefs.isEventLoggingEnabled + ", send events if necessary")
             if (!Prefs.isEventLoggingEnabled) {
                 return
             }
