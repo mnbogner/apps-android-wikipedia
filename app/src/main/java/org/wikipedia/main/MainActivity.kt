@@ -10,6 +10,7 @@ import androidx.appcompat.view.ActionMode
 import androidx.appcompat.widget.Toolbar
 import androidx.fragment.app.Fragment
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.google.firebase.analytics.FirebaseAnalytics
 import org.greatfire.envoy.*
 import org.wikipedia.BuildConfig
 import org.wikipedia.Constants
@@ -29,6 +30,13 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
 
     private val DIRECT_URL = "https://www.wikipedia.org/"
 
+    // firebase logging
+    private lateinit var firebaseAnalytics: FirebaseAnalytics
+    private val EVENT_TAG_DIRECT = "DIRECT_URL"
+    private val EVENT_TAG_SELECT = "SELECTED_URL"
+    private val EVENT_TAG_VALID = "VALID_URL"
+    private val EVENT_TAG_INVALID = "INVALID_URL"
+
     private lateinit var binding: ActivityMainBinding
 
     private var controlNavTabInFragment = false
@@ -47,27 +55,52 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
                 if (intent.action == BROADCAST_URL_VALIDATION_SUCCEEDED) {
                     val validUrls = intent.getStringArrayListExtra(EXTENDED_DATA_VALID_URLS)
                     Log.d(TAG, "received " + validUrls?.size + " valid urls")
-                    if (waitingForEnvoy) {
-                        if (validUrls != null && !validUrls.isEmpty()) {
-                            waitingForEnvoy = false
-                            val envoyUrl = validUrls[0]
-                            if (DIRECT_URL.equals(envoyUrl)) {
-                                Log.d(TAG, "got direct url: " + envoyUrl + ", don't need to start engine")
-                            } else {
-                                Log.d(TAG, "found a valid url: " + envoyUrl + ", start engine")
-                                // select the fastest one (urls are ordered by latency), reInitializeIfNeeded set to false
-                                CronetNetworking.initializeCronetEngine(context, envoyUrl)
-                            }
+                    if (validUrls.isNullOrEmpty()) {
+                        Log.e(TAG, "received empty list of valid urls")
+                    } else if (waitingForEnvoy) {
+                        waitingForEnvoy = false
+                        // select the fastest one (urls are ordered by latency)
+                        val envoyUrl = validUrls[0]
+                        if (DIRECT_URL.equals(envoyUrl)) {
+
+                            // firebase logging
+                            val bundle = Bundle()
+                            bundle.putString("direct_url_value", envoyUrl)
+                            firebaseAnalytics.logEvent(EVENT_TAG_DIRECT, bundle)
+
+                            Log.d(TAG, "got direct url: " + envoyUrl + ", don't need to start engine")
                         } else {
-                            Log.e(TAG, "received empty list of valid urls")
+
+                            // firebase logging
+                            val bundle = Bundle()
+                            bundle.putString("selected_url_value", envoyUrl)
+                            firebaseAnalytics.logEvent(EVENT_TAG_SELECT, bundle)
+
+                            Log.d(TAG, "selected a valid url: " + envoyUrl + ", start engine")
+                            CronetNetworking.initializeCronetEngine(context, envoyUrl)
                         }
                     } else {
-                        Log.d(TAG, "already found a valid url")
+
+                        // firebase logging
+                        val bundle = Bundle()
+                        bundle.putString("valid_url_value", validUrls[validUrls.size - 1])
+                        firebaseAnalytics.logEvent(EVENT_TAG_VALID, bundle)
+
+                        Log.d(TAG,"already selected a valid url, ignore valid url: " + validUrls[validUrls.size - 1])
                     }
                 } else if (intent.action == BROADCAST_URL_VALIDATION_FAILED) {
                     val invalidUrls = intent.getStringArrayListExtra(EXTENDED_DATA_INVALID_URLS)
                     Log.e(TAG, "received " + invalidUrls?.size + " invalid urls")
-                    if (invalidUrls != null && !invalidUrls.isEmpty()) {
+                    if (invalidUrls.isNullOrEmpty()) {
+                        Log.e(TAG, "received empty list of invalid urls")
+                    } else {
+
+                        // firebase logging
+                        val bundle = Bundle()
+                        bundle.putString("invalid_url_value", invalidUrls[invalidUrls.size - 1])
+                        firebaseAnalytics.logEvent(EVENT_TAG_INVALID, bundle)
+
+                        Log.d(TAG, "got invalid url: " + invalidUrls[invalidUrls.size - 1])
                         // TEMP: should envoy reset invalid list before getting ew urls from dnstt?
                         if (waitingForEnvoy && (invalidUrls.size >= listOfUrls.size)) {
                             Log.e(TAG, "no urls left to try, cannot start envoy/cronet")
@@ -76,10 +109,7 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
                         } else {
                             Log.e(TAG, "still trying urls, " + invalidUrls.size + " out of " + listOfUrls.size + " failed")
                         }
-                    } else {
-                        Log.e(TAG, "received empty list of invalid urls")
                     }
-
                 } else {
                     Log.e(TAG, "received unexpected intent: " + intent.action)
                 }
@@ -115,12 +145,15 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
             dnsttConfig.add(BuildConfig.DOH_URL)
             dnsttConfig.add(BuildConfig.DOT_ADDR)
 
-            NetworkIntentService.submit(this@MainActivity, listOfUrls, DIRECT_URL, dnsttConfig)
+            NetworkIntentService.submit(this@MainActivity, listOfUrls, DIRECT_URL, BuildConfig.HYST_CERT, dnsttConfig)
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // firebase logging
+        firebaseAnalytics = FirebaseAnalytics.getInstance(applicationContext)
 
         // register to receive test results
         LocalBroadcastManager.getInstance(this).registerReceiver(mBroadcastReceiver, IntentFilter().apply {

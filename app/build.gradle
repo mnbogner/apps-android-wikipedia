@@ -19,6 +19,7 @@ def dnsttKeyProp = ""
 def dnsttPathProp = ""
 def dohUrlProp = ""
 def dotAddrProp = ""
+def hystCertProp = ""
 def defProxyProp = ""
 
 def static getDate() {
@@ -64,6 +65,12 @@ android {
         dotAddrProp = dotAddr
     } else {
         println "WARNING: no dotAddr prop found"
+    }
+
+    if (project.hasProperty("hystCert")) {
+        hystCertProp = hystCert
+    } else {
+        println "WARNING: no hystCert prop found"
     }
 
     if (project.hasProperty("defProxy")) {
@@ -114,6 +121,7 @@ android {
         buildConfigField "String", "DNSTT_PATH", "\"$dnsttPathProp\""
         buildConfigField "String", "DOH_URL", "\"$dohUrlProp\""
         buildConfigField "String", "DOT_ADDR", "\"$dotAddrProp\""
+        buildConfigField "String", "HYST_CERT", "\"$hystCertProp\""
         buildConfigField "String", "DEF_PROXY", "\"$defProxyProp\""
 
         packagingOptions {
@@ -318,6 +326,11 @@ dependencies {
     betaImplementation "com.google.firebase:firebase-messaging-ktx:$firebaseMessagingVersion"
     greatfireImplementation "com.google.firebase:firebase-messaging-ktx:$firebaseMessagingVersion"
     customImplementation "com.google.firebase:firebase-messaging-ktx:$firebaseMessagingVersion"
+
+    // TODO: Add the dependencies for Firebase products you want to use
+    implementation platform('com.google.firebase:firebase-bom:31.0.0')
+    // When using the BoM, don't specify versions in Firebase dependencies
+    implementation 'com.google.firebase:firebase-analytics-ktx'
 
     debugImplementation "com.squareup.leakcanary:leakcanary-android:$leakCanaryVersion"
     implementation "com.squareup.leakcanary:plumber-android:$leakCanaryVersion"
