@@ -33,9 +33,17 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
     // firebase logging
     private lateinit var firebaseAnalytics: FirebaseAnalytics
     private val EVENT_TAG_DIRECT = "DIRECT_URL"
+    private val EVENT_PARAM_DIRECT_URL = "direct_url_value"
+    private val EVENT_PARAM_DIRECT_SERVICE = "direct_url_service"
     private val EVENT_TAG_SELECT = "SELECTED_URL"
+    private val EVENT_PARAM_SELECT_URL = "selected_url_value"
+    private val EVENT_PARAM_SELECT_SERVICE = "selected_url_service"
     private val EVENT_TAG_VALID = "VALID_URL"
+    private val EVENT_PARAM_VALID_URL = "valid_url_value"
+    private val EVENT_PARAM_VALID_SERVICE = "valid_url_service"
     private val EVENT_TAG_INVALID = "INVALID_URL"
+    private val EVENT_PARAM_INVALID_URL = "invalid_url_value"
+    private val EVENT_PARAM_INVALID_SERVICE = "invalid_url_service"
 
     private lateinit var binding: ActivityMainBinding
 
@@ -43,6 +51,7 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
 
     // add all string values to this list value
     private val listOfUrls = mutableListOf<String>()
+    private val invalidUrls = mutableListOf<String>()
 
     private var waitingForEnvoy = false
 
@@ -53,55 +62,59 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent != null && context != null) {
                 if (intent.action == BROADCAST_URL_VALIDATION_SUCCEEDED) {
-                    val validUrls = intent.getStringArrayListExtra(EXTENDED_DATA_VALID_URLS)
-                    Log.d(TAG, "received " + validUrls?.size + " valid urls")
-                    if (validUrls.isNullOrEmpty()) {
+                    val validUrl = intent.getStringExtra(EXTENDED_DATA_VALID_URL)
+                    val validService = intent.getStringExtra(EXTENDED_DATA_VALID_SERVICE)
+                    if (validUrl.isNullOrEmpty()) {
                         Log.e(TAG, "received empty list of valid urls")
                     } else if (waitingForEnvoy) {
                         waitingForEnvoy = false
-                        // select the fastest one (urls are ordered by latency)
-                        val envoyUrl = validUrls[0]
-                        if (DIRECT_URL.equals(envoyUrl)) {
+                        // select the first url that is returned (assumed to have the lowest latency)
+                        if (DIRECT_URL.equals(validUrl)) {
 
                             // firebase logging
                             val bundle = Bundle()
-                            bundle.putString("direct_url_value", envoyUrl)
+                            bundle.putString(EVENT_PARAM_DIRECT_URL, validUrl)
+                            bundle.putString(EVENT_PARAM_DIRECT_SERVICE, validService)
                             firebaseAnalytics.logEvent(EVENT_TAG_DIRECT, bundle)
 
-                            Log.d(TAG, "got direct url: " + envoyUrl + ", don't need to start engine")
+                            Log.d(TAG, "got direct url: " + validUrl + ", don't need to start engine")
                         } else {
 
                             // firebase logging
                             val bundle = Bundle()
-                            bundle.putString("selected_url_value", envoyUrl)
+                            bundle.putString(EVENT_PARAM_SELECT_URL, validUrl)
+                            bundle.putString(EVENT_PARAM_SELECT_SERVICE, validService)
                             firebaseAnalytics.logEvent(EVENT_TAG_SELECT, bundle)
 
-                            Log.d(TAG, "selected a valid url: " + envoyUrl + ", start engine")
-                            CronetNetworking.initializeCronetEngine(context, envoyUrl)
+                            Log.d(TAG, "selected a valid url: " + validUrl + ", start engine")
+                            CronetNetworking.initializeCronetEngine(context, validUrl)
                         }
                     } else {
 
                         // firebase logging
                         val bundle = Bundle()
-                        bundle.putString("valid_url_value", validUrls[validUrls.size - 1])
+                        bundle.putString(EVENT_PARAM_VALID_URL, validUrl)
+                        bundle.putString(EVENT_PARAM_VALID_SERVICE, validService)
                         firebaseAnalytics.logEvent(EVENT_TAG_VALID, bundle)
 
-                        Log.d(TAG,"already selected a valid url, ignore valid url: " + validUrls[validUrls.size - 1])
+                        Log.d(TAG,"already selected a valid url, ignore valid url: " + validUrl)
                     }
                 } else if (intent.action == BROADCAST_URL_VALIDATION_FAILED) {
-                    val invalidUrls = intent.getStringArrayListExtra(EXTENDED_DATA_INVALID_URLS)
-                    Log.e(TAG, "received " + invalidUrls?.size + " invalid urls")
-                    if (invalidUrls.isNullOrEmpty()) {
-                        Log.e(TAG, "received empty list of invalid urls")
+                    val invalidUrl = intent.getStringExtra(EXTENDED_DATA_INVALID_URL)
+                    val invalidService = intent.getStringExtra(EXTENDED_DATA_INVALID_SERVICE)
+                    if (invalidUrl.isNullOrEmpty()) {
+                        Log.e(TAG, "received null value for invalid url")
                     } else {
 
                         // firebase logging
                         val bundle = Bundle()
-                        bundle.putString("invalid_url_value", invalidUrls[invalidUrls.size - 1])
+                        bundle.putString(EVENT_PARAM_INVALID_URL, invalidUrl)
+                        bundle.putString(EVENT_PARAM_INVALID_SERVICE, invalidService)
                         firebaseAnalytics.logEvent(EVENT_TAG_INVALID, bundle)
 
-                        Log.d(TAG, "got invalid url: " + invalidUrls[invalidUrls.size - 1])
-                        // TEMP: should envoy reset invalid list before getting ew urls from dnstt?
+                        Log.d(TAG, "got invalid url: " + invalidUrl)
+                        invalidUrls.add(invalidUrl)
+                        // TODO: there isn't an obvious way to check unchecked/invalid counts when getting new urls from dnstt
                         if (waitingForEnvoy && (invalidUrls.size >= listOfUrls.size)) {
                             Log.e(TAG, "no urls left to try, cannot start envoy/cronet")
                             // TEMP: clearing this flag will cause any dnstt urls that follow to be ignored
@@ -130,6 +143,7 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
         } else {
             Log.d(TAG, "found default proxy urls: " + BuildConfig.DEF_PROXY)
             listOfUrls.addAll(BuildConfig.DEF_PROXY.split(","))
+            invalidUrls.clear()
 
             /* expected format:
                0. dnstt domain
@@ -145,7 +159,7 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
             dnsttConfig.add(BuildConfig.DOH_URL)
             dnsttConfig.add(BuildConfig.DOT_ADDR)
 
-            NetworkIntentService.submit(this@MainActivity, listOfUrls, DIRECT_URL, BuildConfig.HYST_CERT, dnsttConfig)
+            NetworkIntentService.submit(this@MainActivity, listOfUrls, null, BuildConfig.HYST_CERT, dnsttConfig)
         }
     }
 
