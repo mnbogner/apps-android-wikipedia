@@ -27,7 +27,8 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
 
     private val TAG = "MainActivity"
 
-    private val DIRECT_URL = "https://www.wikipedia.org/"
+    // private val DIRECT_URL = "https://www.wikipedia.org/"
+    private val DIRECT_URL = arrayListOf<String>("https://www.wikipedia.org/")
 
     private lateinit var binding: ActivityMainBinding
 
@@ -37,7 +38,11 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
     private val listOfUrls = mutableListOf<String>()
     private val invalidUrls = mutableListOf<String>()
 
+    private val validServices = mutableListOf<String>()
+    private val invalidServices = mutableListOf<String>()
+
     private var waitingForEnvoy = false
+    private var envoyCount = 0
 
     // this receiver should be triggered by a success or failure broadcast from either the
     // NetworkIntentService (indicating whether submitted urls were valid or invalid) or the
@@ -47,26 +52,40 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
             if (intent != null && context != null) {
                 if (intent.action == ENVOY_BROADCAST_VALIDATION_SUCCEEDED) {
                     val validUrl = intent.getStringExtra(ENVOY_DATA_URL_SUCCEEDED)
+                    val validService = intent.getStringExtra(ENVOY_DATA_SERVICE_SUCCEEDED)
+
+                    if (!validService.isNullOrEmpty()) {
+                        validServices.add(validService + " - " + validUrl)
+                        Prefs.validServices = validServices
+                    }
+
                     if (validUrl.isNullOrEmpty()) {
                         Log.e(TAG, "received a valid url that was empty or null")
                     } else if (waitingForEnvoy) {
                         waitingForEnvoy = false
                         // select the first url that is returned (assumed to have the lowest latency)
-                        if (DIRECT_URL.equals(validUrl)) {
-                            Log.d(TAG, "got direct url: " + validUrl + ", don't need to start engine")
+                        if (DIRECT_URL.contains(validUrl)) {
+                            Log.d(TAG, "got direct url: " + validUrl + " (" + validService + "), don't need to start engine")
                         } else {
-                            Log.d(TAG, "found a valid url: " + validUrl + ", start engine")
+                            Log.d(TAG, "found a valid url: " + validUrl + " (" + validService + "), start engine")
                             CronetNetworking.initializeCronetEngine(context, validUrl)
                         }
                     } else {
-                        Log.d(TAG, "already selected a valid url, ignore valid url: " + validUrl)
+                        Log.d(TAG, "already selected a valid url, ignore valid url: " + validUrl + " (" + validService + ")")
                     }
                 } else if (intent.action == ENVOY_BROADCAST_VALIDATION_FAILED) {
                     val invalidUrl = intent.getStringExtra(ENVOY_DATA_URL_FAILED)
+                    val invalidService = intent.getStringExtra(ENVOY_DATA_SERVICE_FAILED)
+
+                    if (!invalidService.isNullOrEmpty()) {
+                        invalidServices.add(invalidService + " - " + invalidUrl)
+                        Prefs.invalidServices = invalidServices
+                    }
+
                     if (invalidUrl.isNullOrEmpty()) {
                         Log.e(TAG, "received an invalid url that was empty or null")
                     } else {
-                        Log.d(TAG, "got invalid url: " + invalidUrl)
+                        Log.d(TAG, "got invalid url: " + invalidUrl + " (" + invalidService + ")")
                         invalidUrls.add(invalidUrl)
                         // TODO: there isn't an obvious way to check unchecked/invalid counts when getting new urls from dnstt
                         if (waitingForEnvoy && (invalidUrls.size >= listOfUrls.size)) {
@@ -96,6 +115,11 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
         listOfUrls.clear()
         invalidUrls.clear()
 
+        validServices.clear()
+        Prefs.validServices = validServices
+        invalidServices.clear()
+        Prefs.invalidServices = invalidServices
+
         // secrets don't support fdroid package name
         val shortPackage = packageName.removeSuffix(".fdroid")
 
@@ -119,6 +143,8 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
             Log.d(TAG, "found default proxy urls: " + Secrets().getdefProxy(shortPackage))
             listOfUrls.addAll(Secrets().getdefProxy(shortPackage).split(","))
         }
+
+        Log.d(TAG, "SUBMIT " + listOfUrls.size + " URLS TO SERVICE")
 
         NetworkIntentService.submit(
             this@MainActivity,
@@ -165,9 +191,15 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
             Log.d(TAG, "already processing urls, don't try to start envoy again")
         } else {
             // run envoy setup (fetches and validate urls)
-            Log.d(TAG, "start envoy to process urls")
-            waitingForEnvoy = true
-            envoyInit()
+            // TEMP: this is getting called multiple time in spite of the flag check
+            envoyCount = envoyCount + 1
+            if (envoyCount > 1) {
+                Log.d(TAG, "envoyInit call count: " + envoyCount)
+            } else {
+                Log.d(TAG, "start envoy to process urls")
+                waitingForEnvoy = true
+                envoyInit()
+            }
         }
 
         invalidateOptionsMenu()
