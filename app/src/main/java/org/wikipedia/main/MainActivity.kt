@@ -54,7 +54,9 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
                     val validUrl = intent.getStringExtra(ENVOY_DATA_URL_SUCCEEDED)
                     val validService = intent.getStringExtra(ENVOY_DATA_SERVICE_SUCCEEDED)
 
-                    if (!validService.isNullOrEmpty()) {
+                    if (validService.isNullOrEmpty()) {
+                        Log.e(TAG, "received a valid service that was empty or null")
+                    } else {
                         validServices.add(validService + " - " + validUrl)
                         Prefs.validServices = validServices
                     }
@@ -77,7 +79,9 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
                     val invalidUrl = intent.getStringExtra(ENVOY_DATA_URL_FAILED)
                     val invalidService = intent.getStringExtra(ENVOY_DATA_SERVICE_FAILED)
 
-                    if (!invalidService.isNullOrEmpty()) {
+                    if (invalidService.isNullOrEmpty()) {
+                        Log.e(TAG, "received an invalid service that was empty or null")
+                    } else {
                         invalidServices.add(invalidService + " - " + invalidUrl)
                         Prefs.invalidServices = invalidServices
                     }
@@ -116,9 +120,7 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
         invalidUrls.clear()
 
         validServices.clear()
-        Prefs.validServices = validServices
         invalidServices.clear()
-        Prefs.invalidServices = invalidServices
 
         // secrets don't support fdroid package name
         val shortPackage = packageName.removeSuffix(".fdroid")
@@ -158,12 +160,6 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // register to receive test results
-        LocalBroadcastManager.getInstance(this).registerReceiver(mBroadcastReceiver, IntentFilter().apply {
-            addAction(ENVOY_BROADCAST_VALIDATION_SUCCEEDED)
-            addAction(ENVOY_BROADCAST_VALIDATION_FAILED)
-        })
-
         setImageZoomHelper()
         if (Prefs.isInitialOnboardingEnabled && savedInstanceState == null) {
             // Updating preference so the search multilingual tooltip
@@ -179,6 +175,18 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
         supportActionBar?.title = ""
         supportActionBar?.setDisplayHomeAsUpEnabled(false)
         binding.mainToolbar.navigationIcon = null
+    }
+
+    override fun onStart() {
+        super.onStart()
+
+        // moved to start/stop to avoid an issue with registering multiple instances of the receiver when app is swiped away
+        Log.d(TAG, "start/register broadcast receiver")
+        // register to receive test results
+        LocalBroadcastManager.getInstance(this).registerReceiver(mBroadcastReceiver, IntentFilter().apply {
+            addAction(ENVOY_BROADCAST_VALIDATION_SUCCEEDED)
+            addAction(ENVOY_BROADCAST_VALIDATION_FAILED)
+        })
     }
 
     override fun onResume() {
@@ -203,6 +211,15 @@ class MainActivity : SingleFragmentActivity<MainFragment>(), MainFragment.Callba
         }
 
         invalidateOptionsMenu()
+    }
+
+    override fun onStop() {
+        super.onStop()
+
+        // moved to start/stop to avoid an issue with registering multiple instances of the receiver when app is swiped away
+        Log.d(TAG, "stop/unregister broadcast receiver")
+        // unregister receiver for test results
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(mBroadcastReceiver)
     }
 
     override fun createFragment(): MainFragment {
